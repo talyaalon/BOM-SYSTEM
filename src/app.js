@@ -69,17 +69,29 @@ app.listen(PORT, async () => {
     console.warn('');
   }
 
-  // Start the Odoo sync cron job
-  try {
-    startSyncJob();
-    // Optional: run an immediate sync on startup.  runScheduledSync
-    // wraps syncFromOdoo with audit logging (user_id=null, reason=
-    // 'startup') so the boot-time sync is traceable like cron runs.
-    if (process.env.SYNC_ON_START === 'true') {
-      await runScheduledSync('startup');
+  // Start the Odoo sync cron job — UNLESS we are running as a standalone
+  // demo (DISABLE_ODOO_SYNC=true) or Odoo simply isn't configured.  In
+  // those cases the product catalogue comes from the database seed
+  // (scripts/seed-demo-data.js) and we must NOT let a failing/foreign
+  // Odoo sync overwrite or deactivate the demo data.
+  const odooConfigured = !!(
+    process.env.ODOO_URL && process.env.ODOO_DB &&
+    process.env.ODOO_USER && process.env.ODOO_PASSWORD
+  );
+  if (process.env.DISABLE_ODOO_SYNC === 'true' || !odooConfigured) {
+    console.log('[app] Odoo sync disabled (demo mode / Odoo not configured) — skipping cron.');
+  } else {
+    try {
+      startSyncJob();
+      // Optional: run an immediate sync on startup.  runScheduledSync
+      // wraps syncFromOdoo with audit logging (user_id=null, reason=
+      // 'startup') so the boot-time sync is traceable like cron runs.
+      if (process.env.SYNC_ON_START === 'true') {
+        await runScheduledSync('startup');
+      }
+    } catch (err) {
+      console.error('[app] Failed to start sync job:', err.message);
     }
-  } catch (err) {
-    console.error('[app] Failed to start sync job:', err.message);
   }
 });
 

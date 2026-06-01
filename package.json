@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "db:migrate": "node src/db/migrate.js"
+    "db:migrate": "node src/db/migrate.js",
+    "seed:demo": "node scripts/seed-demo-data.js"
   },
   "dependencies": {
     "axios": "^1.7.2",

@@ -50,6 +50,15 @@ router.get('/status', requireAdmin, async (_req, res) => {
 
 // POST /sync/odoo — manually trigger Odoo sync
 router.post('/odoo', requireAdmin, async (req, res) => {
+  // Demo guard: when running as a standalone demo the catalogue comes
+  // from the DB seed, not Odoo.  Block the manual sync so an accidental
+  // click cannot overwrite or deactivate the demo data.
+  if (process.env.DISABLE_ODOO_SYNC === 'true') {
+    return res.status(403).json({
+      message: 'Odoo sync is disabled in demo mode.',
+    });
+  }
+
   const userId    = req.localUser?.id ?? null;
   const ipAddress = getIp(req);
 
