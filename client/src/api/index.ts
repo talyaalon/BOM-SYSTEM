@@ -1,6 +1,10 @@
 import type { SearchResult, PricingFormula, BomDetail, BomSummary, Category, BomSnapshot, AffectedRecipesResult, RecipeType, CalcResult, UserRow, AuditLogPage, SyncStatus, DashboardSummary, ProductRow, RecipeImportReport, RecipeExportFilters } from '../types';
 
-const BASE = import.meta.env.VITE_API_URL ?? '/api';
+// Resolve the API base.  The backend serves everything under /api, so we
+// tolerate VITE_API_URL being set WITH or WITHOUT the /api suffix (a very
+// common deploy mistake) and always normalise to exactly one trailing /api.
+const RAW_BASE = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/+$/, '');
+const BASE = /\/api$/.test(RAW_BASE) ? RAW_BASE : `${RAW_BASE}/api`;
 
 /** Returns the stored JWT (if any) as an Authorization header object. */
 function authHeader(): Record<string, string> {

@@ -1,0 +1,43 @@
+# Render Blueprint for the BOM System backend (Node/Express).
+# Deploy: Render Dashboard → New → Blueprint → connect this repo.
+# Render reads this file and creates the web service with the correct
+# build/start commands.  You only fill in the 4 DB_* secret values
+# (from your Supabase "Session Pooler" connection string) when prompted.
+#
+# IMPORTANT: the start command is `npm start` (= `node src/app.js`).
+# There is NO src/index.js — using it crashes the service on boot,
+# which Render reports as "x-render-routing: no-server".
+services:
+  - type: web
+    name: bom-system-backend
+    runtime: node
+    rootDir: .
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Standalone demo: no Odoo. Disables the sync cron + manual sync.
+      - key: DISABLE_ODOO_SYNC
+        value: "true"
+      # JWT signing secret — Render generates a strong random value.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "8h"
+      # ── Database (Supabase Session Pooler) — fill these in Render ──
+      # The app reads these 5 vars individually; it does NOT use a
+      # single DATABASE_URL.  Values come from the Supabase pooler
+      # connection string.
+      - key: DB_HOST
+        sync: false        # e.g. aws-0-eu-west-1.pooler.supabase.com
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false        # e.g. postgres
+      - key: DB_USER
+        sync: false        # e.g. postgres.knfsyufqyzsybgqwaxay
+      - key: DB_PASSWORD
+        sync: false        # your Supabase DB password

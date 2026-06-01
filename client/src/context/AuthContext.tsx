@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
-const BASE = import.meta.env.VITE_API_URL ?? '/api';
+// Tolerate VITE_API_URL with or without the /api suffix (see api/index.ts).
+const RAW_BASE = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/+$/, '');
+const BASE = /\/api$/.test(RAW_BASE) ? RAW_BASE : `${RAW_BASE}/api`;
 const TOKEN_KEY = 'bom_token';
 const USER_KEY  = 'bom_user';
 
