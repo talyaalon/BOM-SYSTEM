@@ -26,6 +26,7 @@
 
 require('dotenv').config();
 const pool = require('../src/config/db');
+const { hashPassword } = require('../src/utils/password');
 
 // ─── tiny helpers ────────────────────────────────────────────────────
 const rand    = (min, max) => Math.random() * (max - min) + min;
@@ -468,16 +469,33 @@ async function seed() {
       planRecipe(def, 'final', allRaw, Math.random() < 0.4 ? pick(baseRecipes) : null));
     await insertRecipes(client, finalPlans);
 
-    // ── Demo users (admin login still works via ALLOW_DEV_LOGIN) ──
+    // ── Demo users with LOCAL passwords (scrypt-hashed) ──
+    // Login is now local (no Odoo): each user signs in with their
+    // username + the password below.  Admins can create more users and
+    // reset passwords; any user can change their own in the app.
     console.log('[seed] Inserting demo users…');
-    await client.query(`
-      INSERT INTO users (username, name, email, role, is_active) VALUES
-        ('admin', 'מנהל מערכת (דמו)', 'admin@kosher-place.com', 'admin',    TRUE),
-        ('talya', 'טליה',             'talya@kosher-place.com', 'admin',    TRUE),
-        ('shop',  'משתמש חנות',       'shop@kosher-place.com',  'customer', TRUE),
-        ('chef',  'שף',               'chef@kosher-place.com',  'customer', TRUE)
-      ON CONFLICT (username) DO NOTHING
-    `);
+    const DEMO_USERS = [
+      ['admin', 'מנהל מערכת (דמו)', 'admin@kosher-place.com', 'admin',    'admin123'],
+      ['talya', 'טליה',             'talya@kosher-place.com', 'admin',    'talya123'],
+      ['shop',  'משתמש חנות',       'shop@kosher-place.com',  'customer', 'shop123'],
+      ['chef',  'שף',               'chef@kosher-place.com',  'customer', 'chef123'],
+    ];
+    await client.query(
+      `INSERT INTO users (username, name, email, role, password_hash, is_active)
+       SELECT u, n, e, r, ph, TRUE
+       FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::text[])
+            AS t(u, n, e, r, ph)
+       ON CONFLICT (username) DO UPDATE SET
+         password_hash = EXCLUDED.password_hash,
+         role          = EXCLUDED.role,
+         is_active     = TRUE,
+         updated_at    = NOW()`,
+      [
+        DEMO_USERS.map(x => x[0]), DEMO_USERS.map(x => x[1]),
+        DEMO_USERS.map(x => x[2]), DEMO_USERS.map(x => x[3]),
+        DEMO_USERS.map(x => hashPassword(x[4])),
+      ]
+    );
 
     await client.query('COMMIT');
 
@@ -490,7 +508,11 @@ async function seed() {
     `);
     console.log('\n[seed] ✅ Done. Database now contains:');
     console.table(counts[0]);
-    console.log('\nDemo login:  username = admin   code = (your DEV_ADMIN_PASSWORD, e.g. admin123)\n');
+    console.log('\nDemo logins (username / code):');
+    console.log('   admin / admin123   (admin)');
+    console.log('   talya / talya123   (admin)');
+    console.log('   shop  / shop123    (customer)');
+    console.log('   chef  / chef123    (customer)\n');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('\n[seed] ❌ Failed — rolled back. Error:', err.message);

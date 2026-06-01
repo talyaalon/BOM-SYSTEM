@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { BomDrillDownModal } from './components/BomDrillDown/BomDrillDownModal';
 import { FormulaManager } from './components/FormulaManager/FormulaManager';
 import { UserManagementPanel } from './components/Settings/UserManagementPanel';
+import { ChangePasswordModal } from './components/Settings/ChangePasswordModal';
 import { OdooSyncPanel } from './components/Settings/OdooSyncPanel';
 import { ToastContainer } from './components/Toast/Toast';
 import { RecipeImportModal } from './components/RecipeIO/RecipeImportModal';
@@ -766,6 +767,7 @@ const AppInner: React.FC = () => {
   const { t }    = useLang();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   // Nav items are tagged with `adminOnly` so the renderer below can
   // hide admin entries for customer accounts.  The client-side gate
@@ -892,9 +894,20 @@ const AppInner: React.FC = () => {
 
         <LangToggle />
 
-        {/* ── User / logout ──────────────────────────────── */}
+        {/* ── User / change password / logout ────────────── */}
         <div className="app__user-menu">
           {user && <span className="app__user-name">{user.name}</span>}
+          <button
+            className="app__logout-btn"
+            onClick={() => setPwOpen(true)}
+            title={t.changePwMenu}
+            aria-label={t.changePwMenu}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </button>
           <button
             className="app__logout-btn"
             onClick={logout}
@@ -909,6 +922,8 @@ const AppInner: React.FC = () => {
           </button>
         </div>
       </header>
+
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
 
       {/* ── Body: sidebar + main ──────────────────────────── */}
       <div className="app__body">

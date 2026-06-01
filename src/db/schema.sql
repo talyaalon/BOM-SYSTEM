@@ -607,3 +607,18 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_pricing_formulas_default_active
   ON pricing_formulas (price_tier)
   WHERE is_default = TRUE AND is_active = TRUE;
+
+-- =============================================================
+-- STEP 3 — Local password authentication (Odoo-independent)
+--   The original system authenticated users against Odoo via
+--   XML-RPC.  For the standalone build we store a salted password
+--   hash locally so an admin can create users + set passwords and
+--   each user can change their own password — no Odoo required.
+--   • password_hash: scrypt hash in the form 'scrypt$<salt>$<hash>'
+--     (see src/utils/password.js).  NULL = user cannot log in until
+--     an admin sets a password.
+--   • must_change_password: TRUE right after an admin creates/resets
+--     a password, so the UI can nudge the user to pick their own.
+-- =============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash         TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password  BOOLEAN NOT NULL DEFAULT FALSE;

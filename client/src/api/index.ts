@@ -193,6 +193,24 @@ export const api = {
     is_active?: boolean;
   }) => patch<UserRow>(`/users/${id}`, patchBody),
 
+  // Admin: create a new user with an initial password.
+  createUser: (body: {
+    username: string;
+    password: string;
+    name?: string;
+    email?: string;
+    role?: 'admin' | 'customer';
+    can_view_prices?: boolean | null;
+  }) => post<UserRow>('/users', body),
+
+  // Admin: set/reset another user's password.
+  resetUserPassword: (id: number, password: string) =>
+    post<{ message: string; user: UserRow }>(`/users/${id}/reset-password`, { password }),
+
+  // Any user: change their own password.
+  changeMyPassword: (current_password: string, new_password: string) =>
+    post<{ message: string }>('/users/me/password', { current_password, new_password }),
+
   getAuditLogs: (params: {
     user_id?: number;
     action_type?: string;

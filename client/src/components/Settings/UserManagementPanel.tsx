@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api';
 import { useLang } from '../../context/LanguageContext';
@@ -9,11 +9,15 @@ import type { UserRow } from '../../types';
 /**
  * Admin-only user management panel for the SettingsPage.
  *
- * Backend enforces:
- *   • last-active-admin lockout (STEP 2)
+ * Authentication is now LOCAL (no Odoo): admins create users with an
+ * initial password and can reset any user's password.  Each user can
+ * change their own password from the top-bar menu.
+ *
+ * Backend still enforces:
+ *   • last-active-admin lockout
  *   • role / can_view_prices / is_active patch validation
- * — so this UI just provides the controls and trusts the server's
- * 409/400 responses (surfaced via toast).
+ *   • unique username on create
+ * — so this UI just provides controls and surfaces server errors.
  *
  * can_view_prices is a true three-state:
  *   null  → "Default (role-based)"  — admin sees prices, customer does not
@@ -44,6 +48,53 @@ export const UserManagementPanel: React.FC = () => {
     },
   });
 
+  // ── Create-user form state ─────────────────────────────────────────
+  const [form, setForm] = useState({
+    username: '', name: '', email: '', password: '',
+    role: 'customer' as 'admin' | 'customer',
+  });
+  const setField = (k: keyof typeof form) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const { mutate: createUser, isPending: creating } = useMutation({
+    mutationFn: () => api.createUser({
+      username: form.username.trim(),
+      password: form.password,
+      name:     form.name.trim()  || undefined,
+      email:    form.email.trim() || undefined,
+      role:     form.role,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users-list'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      toast(t.userCreatedToast, { type: 'success' });
+      setForm({ username: '', name: '', email: '', password: '', role: 'customer' });
+    },
+    onError: (err: Error) => {
+      toast(t.userCreateFailed, { type: 'error', message: err.message });
+    },
+  });
+
+  // ── Reset-password (admin) ─────────────────────────────────────────
+  const { mutate: resetPw, variables: resetVars, isPending: resetting } = useMutation({
+    mutationFn: (args: { id: number; password: string }) =>
+      api.resetUserPassword(args.id, args.password),
+    onSuccess: () => toast(t.userResetPwToast, { type: 'success' }),
+    onError: (err: Error) =>
+      toast(t.userResetPwFailed, { type: 'error', message: err.message }),
+  });
+
+  const handleResetPw = (u: UserRow) => {
+    const pw = window.prompt(t.userResetPwPrompt.replace('{name}', u.name || u.username));
+    if (pw == null) return;            // cancelled
+    if (pw.trim().length < 4) {
+      toast(t.changePwTooShort, { type: 'warning' });
+      return;
+    }
+    resetPw({ id: u.id, password: pw });
+  };
+
   const fmtDate = (iso: string | null) =>
     iso
       ? new Date(iso).toLocaleString('en-ZA', {
@@ -59,10 +110,53 @@ export const UserManagementPanel: React.FC = () => {
   const parseCvp = (raw: string): boolean | null =>
     raw === 'true' ? true : raw === 'false' ? false : null;
 
+  const canSubmit = form.username.trim().length > 0 && form.password.length >= 4;
+
   return (
     <div className="user-mgmt">
       <h3 className="user-mgmt__title">{t.usersTitle}</h3>
       <p className="user-mgmt__desc">{t.usersDesc}</p>
+
+      {/* ── Create user ─────────────────────────────────────────── */}
+      <form
+        className="user-create"
+        onSubmit={(e) => { e.preventDefault(); if (canSubmit && !creating) createUser(); }}
+      >
+        <h4 className="user-create__title">{t.userCreateTitle}</h4>
+        <div className="user-create__grid">
+          <label className="user-create__field">
+            <span>{t.userFieldUsername}</span>
+            <input value={form.username} onChange={setField('username')}
+                   autoComplete="off" required />
+          </label>
+          <label className="user-create__field">
+            <span>{t.userFieldName}</span>
+            <input value={form.name} onChange={setField('name')} autoComplete="off" />
+          </label>
+          <label className="user-create__field">
+            <span>{t.userFieldEmail}</span>
+            <input type="email" value={form.email} onChange={setField('email')}
+                   autoComplete="off" />
+          </label>
+          <label className="user-create__field">
+            <span>{t.userFieldPassword}</span>
+            <input type="text" value={form.password} onChange={setField('password')}
+                   autoComplete="new-password" required minLength={4} />
+          </label>
+          <label className="user-create__field">
+            <span>{t.userFieldRole}</span>
+            <select value={form.role} onChange={setField('role')}>
+              <option value="customer">{t.userRoleCustomer}</option>
+              <option value="admin">{t.userRoleAdmin}</option>
+            </select>
+          </label>
+          <div className="user-create__submit">
+            <button type="submit" className="btn btn--primary" disabled={!canSubmit || creating}>
+              {creating ? t.userCreating : t.userCreateBtn}
+            </button>
+          </div>
+        </div>
+      </form>
 
       {isLoading ? (
         <p className="user-mgmt__loading">{t.loading}</p>
@@ -82,6 +176,7 @@ export const UserManagementPanel: React.FC = () => {
             {(users as UserRow[]).map((u) => {
               const isMe = me?.id === u.id;
               const rowPending = isPending && pendingVars?.id === u.id;
+              const rowResetting = resetting && resetVars?.id === u.id;
               return (
                 <tr key={u.id} className={u.is_active ? '' : 'user-mgmt__row--inactive'}>
                   <td>
@@ -130,7 +225,14 @@ export const UserManagementPanel: React.FC = () => {
                   <td className="user-mgmt__last-login">
                     {fmtDate(u.last_login)}
                   </td>
-                  <td>
+                  <td className="user-mgmt__actions">
+                    <button
+                      className="btn btn--sm btn--ghost"
+                      disabled={rowResetting}
+                      onClick={() => handleResetPw(u)}
+                    >
+                      {rowResetting ? t.userSavePending : t.userResetPwBtn}
+                    </button>
                     <button
                       className={`btn btn--sm ${u.is_active ? 'btn--ghost' : 'btn--primary'}`}
                       disabled={rowPending}

@@ -1,9 +1,9 @@
 const express = require('express');
 const jwt     = require('jsonwebtoken');
-const xmlrpc  = require('xmlrpc');
 
 const pool                = require('../config/db');
 const { logAudit, getIp } = require('../services/auditService');
+const { verifyPassword }  = require('../utils/password');
 
 const router = express.Router();
 
@@ -13,15 +13,13 @@ const router = express.Router();
  * Auth resolution order:
  *   1. ALLOW_DEV_LOGIN bypass — if enabled AND the submitted
  *      credentials match DEV_ADMIN_USER / DEV_ADMIN_PASSWORD,
- *      log the user in as a local admin without touching Odoo.
- *      Off-by-default, gated by env, and announced at boot.
- *   2. Otherwise authenticate against Odoo via XML-RPC
- *      (same connection style as services/odooSyncService.js):
- *        • /xmlrpc/2/common  → authenticate(db, login, password, {})
- *        • /xmlrpc/2/object  → res.users read + has_group for admin
- *   3. Upsert a local `users` row (cache of the Odoo user, per
- *      STEP 1 schema decision), issue a JWT carrying the LOCAL
- *      users.id, and write an audit_logs row.
+ *      log the user in as a local admin.  Off-by-default, gated by
+ *      env, and announced at boot.
+ *   2. Otherwise verify the submitted code against the LOCAL
+ *      users.password_hash (scrypt — see src/utils/password.js).
+ *      Authentication is fully self-contained; no Odoo involved.
+ *      Admins create users + set passwords via /api/users; users
+ *      change their own via /api/users/me/password.
  */
 router.post('/login', async (req, res) => {
   const { username, code } = req.body;
@@ -42,35 +40,28 @@ router.post('/login', async (req, res) => {
     return issueToken(res, localUser, ipAddress, { devLogin: true });
   }
 
-  // ── 2. Odoo XML-RPC auth ─────────────────────────────────────────
-  if (!process.env.ODOO_URL || !process.env.ODOO_DB) {
-    return res.status(503).json({
-      message:
-        'Authentication service not configured. Set ODOO_URL and ODOO_DB in .env ' +
-        '(or enable ALLOW_DEV_LOGIN=true for local development).',
-    });
-  }
-
-  let odooUser;
+  // ── 2. Local password auth (no Odoo) ─────────────────────────────
+  // Look the user up by username (case-insensitive) and verify the
+  // submitted code against the stored scrypt hash.  Replaces the old
+  // Odoo XML-RPC flow — authentication is now fully self-contained.
+  let localUser;
   try {
-    odooUser = await authenticateWithOdoo(username, code);
+    const { rows } = await pool.query(
+      `SELECT id, odoo_uid, username, name, email, role, can_view_prices,
+              is_active, password_hash, must_change_password
+       FROM   users
+       WHERE  lower(username) = lower($1)`,
+      [username]
+    );
+    localUser = rows[0];
   } catch (err) {
-    console.error('[auth] Odoo XML-RPC transport failed');
-    console.error('[auth]   → URL  :', process.env.ODOO_URL);
-    console.error('[auth]   → DB   :', process.env.ODOO_DB);
-    console.error('[auth]   → Error:', err.message);
-
-    await logAudit({
-      userId:      null,
-      actionType:  'login_failure',
-      entity:      'auth',
-      description: `Odoo transport error for "${username}": ${err.message}`,
-      ipAddress,
-    });
-    return res.status(502).json({ message: 'Authentication server connection error' });
+    return sendStoreUnavailable(res, '[auth] Local user lookup failed', err);
   }
 
-  if (!odooUser) {
+  const passwordOk =
+    localUser && verifyPassword(code, localUser.password_hash);
+
+  if (!localUser || !passwordOk) {
     await logAudit({
       userId:      null,
       actionType:  'login_failure',
@@ -81,25 +72,13 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials.' });
   }
 
-  // ── Deactivation guard (admin override beats Odoo) ───────────────
-  let existing;
-  try {
-    const { rows } = await pool.query(
-      `SELECT id, is_active FROM users WHERE odoo_uid = $1`,
-      [odooUser.uid]
-    );
-    existing = rows[0];
-  } catch (err) {
-    return sendStoreUnavailable(res, '[auth] Local user lookup failed', err);
-  }
-
-  if (existing && existing.is_active === false) {
+  if (!localUser.is_active) {
     await logAudit({
-      userId:      existing.id,
+      userId:      localUser.id,
       actionType:  'login_denied',
       entity:      'user',
-      entityId:    existing.id,
-      description: `Deactivated account "${odooUser.username}" attempted to log in.`,
+      entityId:    localUser.id,
+      description: `Deactivated account "${localUser.username}" attempted to log in.`,
       ipAddress,
     });
     return res.status(403).json({
@@ -107,29 +86,14 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  // ── Upsert keyed by odoo_uid ─────────────────────────────────────
-  // Role rule (unchanged from earlier spec):
-  //   • upstream provided 'admin' → use it (overwrites local)
-  //   • upstream did NOT          → keep existing role, or default
-  //     'customer' for a brand-new row
-  let localUser;
+  // Stamp last_login (best-effort; failure here should not block login)
   try {
-    const { rows } = await pool.query(
-      `INSERT INTO users (odoo_uid, username, name, email, role, is_active, last_login)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 'customer'), TRUE, NOW())
-       ON CONFLICT (odoo_uid) DO UPDATE SET
-         username   = EXCLUDED.username,
-         name       = COALESCE(EXCLUDED.name,  users.name),
-         email      = COALESCE(EXCLUDED.email, users.email),
-         role       = COALESCE($5, users.role),
-         last_login = NOW(),
-         updated_at = NOW()
-       RETURNING id, odoo_uid, username, name, email, role, can_view_prices, is_active`,
-      [odooUser.uid, odooUser.username, odooUser.name, odooUser.email, odooUser.role]
+    await pool.query(
+      `UPDATE users SET last_login = NOW(), updated_at = NOW() WHERE id = $1`,
+      [localUser.id]
     );
-    localUser = rows[0];
   } catch (err) {
-    return sendStoreUnavailable(res, '[auth] Local user upsert failed', err);
+    console.warn('[auth] last_login update failed (non-fatal):', err.message);
   }
 
   return issueToken(res, localUser, ipAddress, { devLogin: false });
@@ -160,74 +124,6 @@ function sendStoreUnavailable(res, contextLabel, err) {
           : undefined;
   }
   return res.status(500).json(body);
-}
-
-// ─── Odoo XML-RPC helpers (mirror src/services/odooSyncService.js) ──
-
-function makeOdooClient(path) {
-  const url  = new URL(process.env.ODOO_URL);
-  const opts = {
-    host: url.hostname,
-    port: url.port || (url.protocol === 'https:' ? 443 : 80),
-    path,
-  };
-  return url.protocol === 'https:'
-    ? xmlrpc.createSecureClient(opts)
-    : xmlrpc.createClient(opts);
-}
-
-function rpcCall(client, method, params) {
-  return new Promise((resolve, reject) => {
-    client.methodCall(method, params, (err, val) => (err ? reject(err) : resolve(val)));
-  });
-}
-
-/**
- * authenticateWithOdoo — calls Odoo XML-RPC `authenticate` and, on
- * success, reads the res.users row + checks `base.group_system` to
- * decide if the user is an admin.
- *
- * Returns null on bad credentials (Odoo's `authenticate` returns
- * false). Throws on transport/server errors so the caller can map
- * them to a 502.
- */
-async function authenticateWithOdoo(login, password) {
-  const db = process.env.ODOO_DB;
-
-  const common = makeOdooClient('/xmlrpc/2/common');
-  const uid = await rpcCall(common, 'authenticate', [db, login, password, {}]);
-  if (!uid) return null;
-
-  const object = makeOdooClient('/xmlrpc/2/object');
-
-  const userRows = await rpcCall(object, 'execute_kw', [
-    db, uid, password,
-    'res.users', 'read',
-    [[uid]],
-    { fields: ['login', 'name', 'email'] },
-  ]);
-  const userRow = Array.isArray(userRows) ? userRows[0] : null;
-
-  // has_group runs as the authenticated uid → tells us if THIS user
-  // is in the Settings/Administration group.  Non-fatal on failure.
-  let isAdmin = false;
-  try {
-    isAdmin = await rpcCall(object, 'execute_kw', [
-      db, uid, password,
-      'res.users', 'has_group',
-      ['base.group_system'],
-    ]);
-  } catch (err) {
-    console.warn('[auth] has_group check failed (defaulting to non-admin):', err.message);
-  }
-
-  return {
-    uid,
-    username: (userRow && userRow.login) || login,
-    name:     (userRow && userRow.name)  || login,
-    email:    (userRow && userRow.email) || null,
-    role:     isAdmin ? 'admin' : null, // null → leave local role / default 'customer' on new row
-  };
 }
 
 // ─── Dev-only local admin bypass ─────────────────────────────────────
@@ -308,6 +204,7 @@ function issueToken(res, localUser, ipAddress, { devLogin }) {
       email:    localUser.email,
       role:     localUser.role,
       can_view_prices: localUser.can_view_prices,
+      must_change_password: localUser.must_change_password ?? false,
     },
   });
 }

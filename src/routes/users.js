@@ -23,11 +23,15 @@ const express = require('express');
 const pool    = require('../config/db');
 const { requireAdmin }   = require('../middleware/authMiddleware');
 const { logAudit, getIp } = require('../services/auditService');
+const { hashPassword, verifyPassword } = require('../utils/password');
 
 const router = express.Router();
 
 const PUBLIC_COLS =
   'id, odoo_uid, username, name, email, role, can_view_prices, is_active, last_login, created_at, updated_at';
+
+// Minimum password length accepted by create / reset / self-change.
+const MIN_PASSWORD_LEN = 4;
 
 // ── GET /api/users/me — open to any authenticated user ──────────────
 // Mounted before requireAdmin so a customer can fetch their own row
@@ -47,8 +51,151 @@ router.get('/me', (req, res) => {
   });
 });
 
+// ── POST /api/users/me/password — change OWN password ──────────────
+// Open to any authenticated user (mounted before requireAdmin).  Body:
+//   { current_password, new_password }
+// Verifies the current password, stores a fresh scrypt hash and clears
+// the must_change_password flag.
+router.post('/me/password', async (req, res) => {
+  if (!req.localUser) return res.status(401).json({ message: 'Not authenticated.' });
+
+  const { current_password, new_password } = req.body ?? {};
+  if (!new_password || new_password.length < MIN_PASSWORD_LEN) {
+    return res.status(400).json({
+      message: `New password must be at least ${MIN_PASSWORD_LEN} characters.`,
+    });
+  }
+
+  // Fetch the current hash (req.localUser does not carry it)
+  const { rows } = await pool.query(
+    `SELECT password_hash FROM users WHERE id = $1`,
+    [req.localUser.id]
+  );
+  const stored = rows[0]?.password_hash;
+
+  // If the account already has a password, the current one must match.
+  // (Accounts seeded without a password can set one without the check.)
+  if (stored && !verifyPassword(current_password ?? '', stored)) {
+    return res.status(401).json({ message: 'Current password is incorrect.' });
+  }
+
+  await pool.query(
+    `UPDATE users
+       SET password_hash = $1, must_change_password = FALSE, updated_at = NOW()
+     WHERE id = $2`,
+    [hashPassword(new_password), req.localUser.id]
+  );
+
+  await logAudit({
+    userId:      req.localUser.id,
+    actionType:  'user_password_change',
+    entity:      'user',
+    entityId:    req.localUser.id,
+    description: `User "${req.localUser.username}" changed their own password.`,
+    ipAddress:   getIp(req),
+  });
+
+  res.json({ message: 'Password updated.' });
+});
+
 // ── Everything below requires admin ─────────────────────────────────
 router.use(requireAdmin);
+
+// POST /api/users — create a new user with an initial password (admin)
+// Body: { username, password, name?, email?, role?, can_view_prices? }
+router.post('/', async (req, res) => {
+  const { username, password, name, email, role, can_view_prices } = req.body ?? {};
+
+  if (!username || !String(username).trim()) {
+    return res.status(400).json({ error: 'username is required' });
+  }
+  if (!password || password.length < MIN_PASSWORD_LEN) {
+    return res.status(400).json({ error: `password must be at least ${MIN_PASSWORD_LEN} characters` });
+  }
+  if (role !== undefined && role !== 'admin' && role !== 'customer') {
+    return res.status(400).json({ error: "role must be 'admin' or 'customer'" });
+  }
+  if (
+    can_view_prices !== undefined &&
+    can_view_prices !== true && can_view_prices !== false && can_view_prices !== null
+  ) {
+    return res.status(400).json({ error: 'can_view_prices must be true, false, or null' });
+  }
+
+  // Reject duplicate username up-front for a friendly message (the
+  // UNIQUE constraint is still the real guard).
+  const { rows: dup } = await pool.query(
+    `SELECT 1 FROM users WHERE lower(username) = lower($1)`,
+    [username.trim()]
+  );
+  if (dup.length) {
+    return res.status(409).json({ error: 'A user with this username already exists.' });
+  }
+
+  let created;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO users
+         (username, name, email, role, can_view_prices, password_hash,
+          must_change_password, is_active)
+       VALUES ($1, $2, $3, COALESCE($4, 'customer'), $5, $6, TRUE, TRUE)
+       RETURNING ${PUBLIC_COLS}`,
+      [username.trim(), name ?? null, email ?? null, role ?? null,
+       can_view_prices ?? null, hashPassword(password)]
+    );
+    created = rows[0];
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'A user with this username already exists.' });
+    }
+    throw err;
+  }
+
+  await logAudit({
+    userId:      req.localUser.id,
+    actionType:  'user_create',
+    entity:      'user',
+    entityId:    created.id,
+    description: `Admin "${req.localUser.username}" created user "${created.username}" (role=${created.role}).`,
+    valueAfter:  { username: created.username, role: created.role },
+    ipAddress:   getIp(req),
+  });
+
+  res.status(201).json(created);
+});
+
+// POST /api/users/:id/reset-password — admin sets a user's password
+// Body: { password }.  Forces must_change_password so the user is
+// nudged to pick their own on next login.
+router.post('/:id/reset-password', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid user id' });
+
+  const { password } = req.body ?? {};
+  if (!password || password.length < MIN_PASSWORD_LEN) {
+    return res.status(400).json({ error: `password must be at least ${MIN_PASSWORD_LEN} characters` });
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE users
+       SET password_hash = $1, must_change_password = TRUE, updated_at = NOW()
+     WHERE id = $2
+     RETURNING ${PUBLIC_COLS}`,
+    [hashPassword(password), id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'user not found' });
+
+  await logAudit({
+    userId:      req.localUser.id,
+    actionType:  'user_password_reset',
+    entity:      'user',
+    entityId:    id,
+    description: `Admin "${req.localUser.username}" reset the password for "${rows[0].username}".`,
+    ipAddress:   getIp(req),
+  });
+
+  res.json({ message: 'Password reset.', user: rows[0] });
+});
 
 // GET /api/users — list, with optional filters
 router.get('/', async (req, res) => {

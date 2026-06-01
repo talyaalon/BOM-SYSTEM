@@ -50,9 +50,6 @@ export const RecipeBuilder: React.FC = () => {
     setRecipeType,
     setMultipliers,
     setPricingFormulaId,
-    setLaborCost,
-    setOverheadCost,
-    setPackagingCost,
     setFullName,
     setDescription,
     setImageUrl,
@@ -336,13 +333,6 @@ export const RecipeBuilder: React.FC = () => {
   const handleYieldChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     if (!isNaN(val) && val > 0) setYield(val);
-  };
-
-  const handleProductionCostChange = (
-    setter: (v: number) => void
-  ) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    setter(isNaN(val) || val < 0 ? 0 : val);
   };
 
   // Footer totals — effective quantities (post-waste)
