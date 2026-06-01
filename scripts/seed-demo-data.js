@@ -474,11 +474,13 @@ async function seed() {
     // username + the password below.  Admins can create more users and
     // reset passwords; any user can change their own in the app.
     console.log('[seed] Inserting demo users…');
+    // Names kept language-neutral (English) so they read correctly in
+    // both the Hebrew and English UI (the header shows the raw name).
     const DEMO_USERS = [
-      ['admin', 'מנהל מערכת (דמו)', 'admin@kosher-place.com', 'admin',    'admin123'],
-      ['talya', 'טליה',             'talya@kosher-place.com', 'admin',    'talya123'],
-      ['shop',  'משתמש חנות',       'shop@kosher-place.com',  'customer', 'shop123'],
-      ['chef',  'שף',               'chef@kosher-place.com',  'customer', 'chef123'],
+      ['admin', 'Demo Admin', 'admin@kosher-place.com', 'admin',    'admin123'],
+      ['talya', 'Talya',      'talya@kosher-place.com', 'admin',    'talya123'],
+      ['shop',  'Shop User',  'shop@kosher-place.com',  'customer', 'shop123'],
+      ['chef',  'Chef',       'chef@kosher-place.com',  'customer', 'chef123'],
     ];
     await client.query(
       `INSERT INTO users (username, name, email, role, password_hash, is_active)

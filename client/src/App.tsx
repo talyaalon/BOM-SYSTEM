@@ -6,7 +6,7 @@ import { BomDrillDownModal } from './components/BomDrillDown/BomDrillDownModal';
 import { FormulaManager } from './components/FormulaManager/FormulaManager';
 import { UserManagementPanel } from './components/Settings/UserManagementPanel';
 import { ChangePasswordModal } from './components/Settings/ChangePasswordModal';
-import { OdooSyncPanel } from './components/Settings/OdooSyncPanel';
+import { ErpIntegrationPanel } from './components/Settings/ErpIntegrationPanel';
 import { ToastContainer } from './components/Toast/Toast';
 import { RecipeImportModal } from './components/RecipeIO/RecipeImportModal';
 import { LanguageProvider, useLang } from './context/LanguageContext';
@@ -27,30 +27,23 @@ const KosherPlaceLogo: React.FC = () => (
   <svg
     viewBox="0 0 260 90"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="The Kosher Place"
+    aria-label="BOM System"
     direction="ltr"
     style={{ height: 42, width: 'auto', flexShrink: 0, direction: 'ltr' }}
   >
     <text
-      x="8" y="22"
+      x="4" y="56"
       fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="18" fill="#CBAA6A" letterSpacing="3"
+      fontWeight="700" fontSize="50" fill="#FFFFFF" letterSpacing="0"
     >
-      THE
+      BOM
     </text>
     <text
-      x="4" y="72"
+      x="6" y="83"
       fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="52" fill="#FFFFFF" letterSpacing="-1"
+      fontWeight="700" fontSize="21" fill="#CBAA6A" letterSpacing="7"
     >
-      KOSHER
-    </text>
-    <text
-      x="175" y="88"
-      fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="18" fill="#CBAA6A" letterSpacing="3"
-    >
-      PLACE
+      SYSTEM
     </text>
   </svg>
 );
@@ -756,7 +749,7 @@ export const SettingsPage: React.FC = () => {
       <div className="settings-page__body">
         {tab === 'formulas' && <FormulaManager />}
         {tab === 'users'    && <UserManagementPanel />}
-        {tab === 'sync'     && <OdooSyncPanel />}
+        {tab === 'sync'     && <ErpIntegrationPanel />}
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ export const UserManagementPanel: React.FC = () => {
   });
 
   // ── Create-user form state ─────────────────────────────────────────
+  const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
     username: '', name: '', email: '', password: '',
     role: 'customer' as 'admin' | 'customer',
@@ -70,6 +71,7 @@ export const UserManagementPanel: React.FC = () => {
       qc.invalidateQueries({ queryKey: ['dashboard-summary'] });
       toast(t.userCreatedToast, { type: 'success' });
       setForm({ username: '', name: '', email: '', password: '', role: 'customer' });
+      setShowCreate(false);
     },
     onError: (err: Error) => {
       toast(t.userCreateFailed, { type: 'error', message: err.message });
@@ -117,12 +119,25 @@ export const UserManagementPanel: React.FC = () => {
       <h3 className="user-mgmt__title">{t.usersTitle}</h3>
       <p className="user-mgmt__desc">{t.usersDesc}</p>
 
-      {/* ── Create user ─────────────────────────────────────────── */}
+      {/* ── Create user (collapsed behind a button until opened) ── */}
+      {!showCreate ? (
+        <div className="user-create-bar">
+          <button className="btn btn--primary" onClick={() => setShowCreate(true)}>
+            {t.userAddNew}
+          </button>
+        </div>
+      ) : (
       <form
         className="user-create"
         onSubmit={(e) => { e.preventDefault(); if (canSubmit && !creating) createUser(); }}
       >
-        <h4 className="user-create__title">{t.userCreateTitle}</h4>
+        <div className="user-create__head">
+          <h4 className="user-create__title">{t.userCreateTitle}</h4>
+          <button
+            type="button" className="user-create__close"
+            onClick={() => setShowCreate(false)} aria-label={t.changePwCancel}
+          >✕</button>
+        </div>
         <div className="user-create__grid">
           <label className="user-create__field">
             <span>{t.userFieldUsername}</span>
@@ -157,6 +172,7 @@ export const UserManagementPanel: React.FC = () => {
           </div>
         </div>
       </form>
+      )}
 
       {isLoading ? (
         <p className="user-mgmt__loading">{t.loading}</p>

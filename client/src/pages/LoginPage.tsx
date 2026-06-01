@@ -8,30 +8,23 @@ const LoginLogo: React.FC = () => (
   <svg
     viewBox="0 0 260 90"
     xmlns="http://www.w3.org/2000/svg"
-    aria-label="The Kosher Place"
+    aria-label="BOM System"
     direction="ltr"
     style={{ height: 56, width: 'auto', direction: 'ltr' }}
   >
     <text
-      x="8" y="22"
+      x="4" y="56"
       fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="18" fill="#CBAA6A" letterSpacing="3"
+      fontWeight="700" fontSize="50" fill="#FFFFFF" letterSpacing="0"
     >
-      THE
+      BOM
     </text>
     <text
-      x="4" y="72"
+      x="6" y="83"
       fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="52" fill="#FFFFFF" letterSpacing="-1"
+      fontWeight="700" fontSize="21" fill="#CBAA6A" letterSpacing="7"
     >
-      KOSHER
-    </text>
-    <text
-      x="175" y="88"
-      fontFamily="Georgia, 'Times New Roman', serif"
-      fontWeight="700" fontSize="18" fill="#CBAA6A" letterSpacing="3"
-    >
-      PLACE
+      SYSTEM
     </text>
   </svg>
 );

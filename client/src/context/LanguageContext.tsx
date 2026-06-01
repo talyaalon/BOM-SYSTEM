@@ -245,6 +245,7 @@ const translations = {
     userSavePending:         'Saving…',
     // Create user + password management
     userCreateTitle:         'Create user',
+    userAddNew:              '+ New user',
     userFieldUsername:       'Username',
     userFieldName:           'Full name',
     userFieldEmail:          'Email',
@@ -321,7 +322,12 @@ const translations = {
     rbViewPrintTitle:        'Print or save as PDF',
     settingsTabFormulas:     'Pricing formulas',
     settingsTabUsers:        'Users',
-    settingsTabSync:         'Odoo sync',
+    settingsTabSync:         'ERP integration',
+    // ERP integration tab (demo messaging)
+    erpTitle:                'ERP Integration (API)',
+    erpDemoBadge:            'Demo mode',
+    erpDemoNote:             'This is a demo system, so the catalogue is filled with sample data. In the production system the app connects via API to the factory’s existing ERP system, and products and costs are synced from it automatically.',
+    erpRecalcNote:           'You can recalculate all recipe costs from the current data:',
     formulaNameLabel:        'Formula name',
     formulaPriorityLabel:    'Priority',
     // Products tab (admin-only Odoo catalogue)
@@ -588,6 +594,7 @@ const translations = {
     userSavePending:         'שומר…',
     // Create user + password management
     userCreateTitle:         'יצירת משתמש',
+    userAddNew:              '+ משתמש חדש',
     userFieldUsername:       'שם משתמש',
     userFieldName:           'שם מלא',
     userFieldEmail:          'אימייל',
@@ -664,7 +671,12 @@ const translations = {
     rbViewPrintTitle:        'הדפסה או שמירה כ-PDF',
     settingsTabFormulas:     'נוסחאות תמחור',
     settingsTabUsers:        'משתמשים',
-    settingsTabSync:         'סנכרון אודו',
+    settingsTabSync:         'התממשקות ERP',
+    // ERP integration tab (demo messaging)
+    erpTitle:                'התממשקות API עם מערכת ERP',
+    erpDemoBadge:            'מצב דמו',
+    erpDemoNote:             'זוהי מערכת דמו, ולכן הקטלוג מכיל נתוני דמו. במערכת האמיתית האפליקציה מתחברת ב-API למערכת ה-ERP הקיימת של המפעל, והמוצרים והעלויות מסתנכרנים ממנה אוטומטית.',
+    erpRecalcNote:           'אפשר לחשב מחדש את כל עלויות המתכונים מהנתונים הנוכחיים:',
     formulaNameLabel:        'שם הנוסחה',
     formulaPriorityLabel:    'עדיפות',
     // Products tab (admin-only Odoo catalogue)
