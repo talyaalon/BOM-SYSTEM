@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { useLang } from '../../context/LanguageContext';
 import { getImageSrc } from './imageHelpers';
+import { translateAllergen, formatAllergens } from './allergens';
 import type { BomSummary, RecipeType } from '../../types';
 
 /**
@@ -17,7 +18,7 @@ import type { BomSummary, RecipeType } from '../../types';
  * for customers without view-price permission).
  */
 export const RecipeBookList: React.FC = () => {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [type, setType]               = useState<RecipeType>('final');
   const [search, setSearch]           = useState('');
   const [allergenFilter, setAllergen] = useState<string>('');
@@ -102,7 +103,7 @@ export const RecipeBookList: React.FC = () => {
           >
             <option value="">{t.rbFilterAll}</option>
             {allergenOptions.map((a) => (
-              <option key={a} value={a}>{a}</option>
+              <option key={a} value={a}>{translateAllergen(a, lang)}</option>
             ))}
           </select>
         </label>
@@ -159,7 +160,7 @@ export const RecipeBookList: React.FC = () => {
                       <>
                         <span className="recipe-card__allergens-label">{t.rbAllergenLabel}:</span>
                         <span className="recipe-card__allergens-list">
-                          {r.allergens.join(' · ')}
+                          {formatAllergens(r.allergens, lang)}
                         </span>
                       </>
                     ) : (

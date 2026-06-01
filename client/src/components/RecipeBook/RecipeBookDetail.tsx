@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { useLang } from '../../context/LanguageContext';
 import { getImageSrc, fmtMoney, fmtQty } from './imageHelpers';
+import { formatAllergens } from './allergens';
 import { RecipeCalculator } from './RecipeCalculator';
 import type { BomDetail } from '../../types';
 
@@ -21,7 +22,7 @@ import type { BomDetail } from '../../types';
 export const RecipeBookDetail: React.FC = () => {
   const { itemId } = useParams<{ itemId: string }>();
   const id = itemId ? parseInt(itemId) : NaN;
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   const { data: recipe, isLoading, isError, error } = useQuery({
     queryKey: ['bom-detail', id],
@@ -73,7 +74,7 @@ export const RecipeBookDetail: React.FC = () => {
             )}
             {(detail.allergens && detail.allergens.length > 0) && (
               <span className="rb-chip rb-chip--allergens" title={t.rbAllergenLabel}>
-                {t.rbAllergenLabel}: {detail.allergens.join(' · ')}
+                {t.rbAllergenLabel}: {formatAllergens(detail.allergens, lang)}
               </span>
             )}
             {detail.total_weight != null && (

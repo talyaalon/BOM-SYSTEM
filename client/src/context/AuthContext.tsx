@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 // Tolerate VITE_API_URL with or without the /api suffix (see api/index.ts).
 const RAW_BASE = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/+$/, '');
@@ -41,6 +41,30 @@ function readStoredUser(): AuthUser | null {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user,  setUser]  = useState<AuthUser | null>(readStoredUser);
+
+  // Refresh the cached user from the server whenever we hold a token, so
+  // name / role changes (e.g. an admin renaming a user) show up on the
+  // next load without forcing a re-login.  Failures are ignored — the
+  // cached user keeps working; expired tokens are handled by the API layer.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch(`${BASE}/users/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => {
+        if (cancelled || !me) return;
+        setUser((prev) => {
+          const next = {
+            ...(prev ?? {}),
+            id: me.id, username: me.username, name: me.name, role: me.role,
+          } as AuthUser;
+          localStorage.setItem(USER_KEY, JSON.stringify(next));
+          return next;
+        });
+      })
+      .catch(() => { /* keep cached user on network error */ });
+    return () => { cancelled = true; };
+  }, [token]);
 
   const login = useCallback(async (username: string, code: string) => {
     const res = await fetch(`${BASE}/auth/login`, {
