@@ -20,6 +20,7 @@ type SortDir = 'asc' | 'desc';
 function getImageSrc(url: string | null): string | null {
   if (!url || typeof url !== 'string') return null;
   if (url.startsWith('data:image')) return url;
+  if (/^https?:\/\//i.test(url)) return url;   // normal image URL (e.g. demo photos)
   if (url.length < 100) return null;
   const isJpeg = url.startsWith('/9j/');
   return `data:image/${isJpeg ? 'jpeg' : 'png'};base64,${url}`;
