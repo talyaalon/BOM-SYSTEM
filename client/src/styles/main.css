@@ -5223,6 +5223,21 @@ a.sidebar-nav__item {
   padding: 1px 6px;
   border-radius: 4px;
 }
+/* Clickable sub-recipe pill → navigates to that base recipe */
+.recipe-view__sub-pill--link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.recipe-view__sub-pill--link:hover {
+  background: var(--burgundy);
+  color: #fff;
+  border-color: var(--burgundy);
+}
+.recipe-view__sub-pill--link svg { margin-top: -1px; }
 
 /* ── Clickable name cell in BOM History ───────────────────── */
 .bom-history__name-cell {

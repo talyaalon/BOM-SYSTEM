@@ -34,6 +34,12 @@ export const RecipeAdminView: React.FC = () => {
   });
   const summary: BomSummary | undefined = (summaries ?? []).find((s) => s.item_id === id);
 
+  // Scroll the content area to the top when switching recipes (e.g. after
+  // clicking a sub-recipe pill) so the new recipe opens at its header.
+  React.useEffect(() => {
+    document.querySelector('.app__main')?.scrollTo({ top: 0 });
+  }, [id]);
+
   if (isLoading) return <div className="view-placeholder"><p>{t.loading}</p></div>;
   if (isError || !recipe) {
     return (
@@ -319,7 +325,16 @@ export const RecipeAdminView: React.FC = () => {
                           <div className="recipe-view__ing-text">
                             <span className="recipe-view__ing-name">{l.ingredient}</span>
                             {l.item_type === 'recipe' && (
-                              <span className="recipe-view__sub-pill">{t.subRecipe}</span>
+                              <Link
+                                to={`/recipes/view/${l.ingredient_id}`}
+                                className="recipe-view__sub-pill recipe-view__sub-pill--link"
+                                title={l.ingredient}
+                              >
+                                {t.subRecipe}
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                              </Link>
                             )}
                           </div>
                         </div>

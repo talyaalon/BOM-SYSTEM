@@ -152,8 +152,8 @@ const translations = {
     invalidIngredientRow:  'Each ingredient row must have a selected item and a quantity greater than 0.',
     // Final products list pricing columns
     totalCost:           'Total Cost',
-    tkpPrice:            'TKP Price',
-    sellingPrice:        'Selling Price',
+    tkpPrice:            'Wholesale Price',
+    sellingPrice:        'Retail Price',
     // Generic
     noFormulas:          'No formulas configured yet — add one below.',
     // Login page
@@ -501,8 +501,8 @@ const translations = {
     invalidIngredientRow:  'לכל שורת מרכיב חייב להיות פריט נבחר וכמות גדולה מ-0.',
     // Final products list pricing columns
     totalCost:           'מחיר עלות',
-    tkpPrice:            'מחיר TKP',
-    sellingPrice:        'מחיר מכירה',
+    tkpPrice:            'מחיר סיטונאי',
+    sellingPrice:        'מחיר קמעונאי',
     // Generic
     noFormulas:          'אין נוסחאות מוגדרות עדיין — הוסף אחת למטה.',
     // Login page
